@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Calculator</title>
+  <style>
+    :root{--bg:#f4f7fb;--panel:#ffffff;--accent:#0b63ff;--muted:#6b7280}
+    *{box-sizing:border-box}
+    body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;display:flex;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(180deg,#eef2ff 0%,var(--bg) 100%);margin:0;padding:24px}
+    .calculator{width:340px;background:var(--panel);border-radius:12px;box-shadow:0 10px 30px rgba(13,30,68,0.12);padding:18px}
+    .screen{height:72px;background:#0f1724;color:#fff;border-radius:8px;padding:12px;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;font-weight:600;font-size:1.25rem}
+    .expression{font-size:0.75rem;color:rgba(255,255,255,0.75);line-height:1}
+    .result{font-size:1.25rem}
+    .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+    button{height:56px;border-radius:8px;border:0;background:#eef2f8;font-weight:600;font-size:1rem;color:#0b1220;cursor:pointer}
+    button.op{background:linear-gradient(180deg,#0b63ff,#074ad2);color:#fff}
+    button.equal{grid-column:span 2;background:linear-gradient(180deg,#0bff9b,#00d17a);color:#073018}
+    button.span2{grid-column:span 2}
+    button:active{transform:translateY(1px)}
+    .muted{background:#f3f4f6;color:var(--muted)}
+    footer{font-size:12px;color:#6b7280;margin-top:10px;text-align:center}
+  </style>
+</head>
+<body>
+  <main class="calculator" role="application" aria-label="Calculator">
+    <div class="screen" aria-live="polite">
+      <div class="expression" id="expr">0</div>
+      <div class="result" id="res">0</div>
+    </div>
+
+    <div class="keys" role="group" aria-label="Calculator keys">
+      <button class="muted" data-action="clear" title="Clear (C)">C</button>
+      <button class="muted" data-action="neg" title="Toggle sign">±</button>
+      <button class="muted" data-action="percent" title="Percent (%)">%</button>
+      <button class="op" data-action="/">÷</button>
+
+      <button data-digit="7">7</button>
+      <button data-digit="8">8</button>
+      <button data-digit="9">9</button>
+      <button class="op" data-action="*">×</button>
+
+      <button data-digit="4">4</button>
+      <button data-digit="5">5</button>
+      <button data-digit="6">6</button>
+      <button class="op" data-action="-">−</button>
+
+      <button data-digit="1">1</button>
+      <button data-digit="2">2</button>
+      <button data-digit="3">3</button>
+      <button class="op" data-action="+">+</button>
+
+      <button class="span2" data-digit="0">0</button>
+      <button data-digit=".">.</button>
+      <button class="equal" data-action="=">=</button>
+
+      <button class="muted span2" data-action="sqrt">√</button>
+      <button class="muted" data-action="pow">x²</button>
+    </div>
+
+    <footer>Basic web calculator — supports + − × ÷ % √ and x²</footer>
+  </main>
+
+  <script>
+    // Simple calculator logic: expression is built as a string but evaluated safely
+    (function(){
+      const exprEl = document.getElementById('expr');
+      const resEl = document.getElementById('res');
+
+      let current = '0';
+      let expression = '';
+      let lastWasOp = false;
+
+      function updateScreen(){
+        exprEl.textContent = expression || '0';
+        resEl.textContent = current;
+      }
+
+      function safeEval(exp){
+        // Allow only digits, operators, decimal point, parentheses and spaces
+        if(!/^[0-9+\-*/(). %]+$/.test(exp)) return 'Error';
+        try{
+          // Replace unicode division/multiplication if present
+          const normalized = exp.replace(/÷/g, '/').replace(/×/g, '*');
+          // eslint-disable-next-line no-new-func
+          const fn = new Function('return ('+normalized+')');
+          const val = fn();
+          if(typeof val === 'number' && isFinite(val)) return String(val);
+          return 'Error';
+        }catch(e){
+          return 'Error';
+        }
+      }
+
+      document.querySelectorAll('[data-digit]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const d = btn.getAttribute('data-digit');
+          if(lastWasOp){
+            current = d === '.' ? '0.' : d;
+            lastWasOp = false;
+          } else {
+            if(current === '0' && d !== '.') current = d;
+            else if(d === '.' && current.includes('.')) return;
+            else current += d;
+          }
+          updateScreen();
+        });
+      });
+
+      document.querySelectorAll('[data-action]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const act = btn.getAttribute('data-action');
+          if(act === 'clear'){
+            current = '0'; expression = ''; lastWasOp = false; updateScreen();
+          } else if(act === 'neg'){
+            if(current.startsWith('-')) current = current.slice(1); else current = '-' + current; updateScreen();
+          } else if(act === 'percent'){
+            current = String(Number(current) / 100); updateScreen();
+          } else if(act === 'sqrt'){
+            const v = Number(current);
+            current = v < 0 ? 'Error' : String(Math.sqrt(v)); updateScreen();
+          } else if(act === 'pow'){
+            const v = Number(current);
+            current = String(v * v); updateScreen();
+          } else if(act === '='){
+            // finalize expression
+            const expr = (expression + ' ' + current).trim();
+            const r = safeEval(expr);
+            current = r; expression = ''; lastWasOp = false; updateScreen();
+          } else {
+            // operator
+            // append current and operator to expression
+            if(lastWasOp){
+              // replace last operator
+              expression = expression.slice(0, -1) + act;
+            } else {
+              expression = (expression ? expression + ' ' : '') + current + ' ' + act;
+            }
+            lastWasOp = true;
+            updateScreen();
+          }
+        })
+      });
+
+      // keyboard support
+      window.addEventListener('keydown', (e)=>{
+        if(e.key >= '0' && e.key <= '9') document.querySelector('[data-digit="'+e.key+'"]')?.click();
+        if(e.key === '.') document.querySelector('[data-digit="."]')?.click();
+        if(e.key === 'Enter' || e.key === '=') document.querySelector('[data-action="="]')?.click();
+        if(e.key === 'Backspace'){
+          if(current.length>1) current = current.slice(0,-1); else current = '0'; updateScreen();
+        }
+        if(['+','-','*','/'].includes(e.key)) document.querySelector('[data-action="'+e.key+'"]').click();
+        if(e.key === '%') document.querySelector('[data-action="percent"]')?.click();
+      });
+
+      updateScreen();
+    })();
+  </script>
+</body>
+</html>
